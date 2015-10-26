@@ -1,9 +1,19 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.sitemaps.org/schemas/sitemap/0.9 http://www.sitemaps.org/schemas/sitemap/0.9/sitemap.xsd" xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
+    <loc>http://lbsong.github.io/blog/20151025/sometools/</loc>
+    <lastmod>2015-10-25T12:32:50-07:00</lastmod>
+  </url>
+  <url>
+    <loc>http://lbsong.github.io/sharpcode/first.html</loc>
+  </url>
+  <url>
     <loc>http://lbsong.github.io/blog/archives/</loc>
   </url>
   <url>
     <loc>http://lbsong.github.io/</loc>
+  </url>
+  <url>
+    <loc>http://lbsong.github.io/blog/categories/gong-ju/</loc>
   </url>
 </urlset>
