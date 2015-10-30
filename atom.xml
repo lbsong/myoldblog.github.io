@@ -4,7 +4,7 @@
   <title><![CDATA[Lost In Code]]></title>
   <link href="http://lbsong.github.io/atom.xml" rel="self"/>
   <link href="http://lbsong.github.io/"/>
-  <updated>2015-10-25T23:40:44-07:00</updated>
+  <updated>2015-10-29T17:48:06-07:00</updated>
   <id>http://lbsong.github.io/</id>
   <author>
     <name><![CDATA[Song Libin]]></name>
@@ -12,6 +12,77 @@
   </author>
   <generator uri="http://octopress.org/">Octopress</generator>
 
+  
+  <entry>
+    <title type="html"><![CDATA[开发日志 (1)]]></title>
+    <link href="http://lbsong.github.io/blog/20151026/use-sql-azure/"/>
+    <updated>2015-10-26T15:42:01-07:00</updated>
+    <id>http://lbsong.github.io/blog/20151026/use-sql-azure</id>
+    <content type="html"><![CDATA[<h2>SQL Azure 还是 Azure Storage Table</h2>
+
+<p>项目要求在 Azure 上存储一些数据，可以选择 Azure Storage Table 或者 SQL Azure, 根据 SQL Azure 和 Azure Storage Table 的特点和要存储的数据，选择一种存储方式对存储的结构有很大影响。
+Azure Storage Table 是一种非关系型（或者说非 SQL)的数据存储方式，依赖于 PartitionKey 和 RowKey 来定位一条记录。
+而 SQL Azure 是关系型数据库，可以使用 SQL 查询，也可以使用 Index 来改善查询速度。
+所以如果使用 Azure Storage Table 那就需要确定用什么数据作为 PartitionKey 和 RowKey，这样才能满足未来的查询需求。我们要存储的数据包含：</p>
+
+<p><strong>#DATE#FIELD0#FIELD1#FIELD2#FIELD3#FIELD4#FIELD5#FIELD6#</strong></p>
+
+<p>数据量每天不超过1万条,可能会通过 Date 查询，也可能通过 FIELD0 查询，也可能再用 FIELD2 过滤结果。通过其他查询的可能性不太大。 相对 DATE 而言，FIELD1 是唯一的，换句话说，DATE + FIELD1可以保证唯一性。</p>
+
+<p>从以上分析来看，如果使用 Azure Storage Table，DATE 可以作为 PartitionKey，而 FIELD1 可以作为 RowKey。那这样的设计有什么问题呢？</p>
+
+<ol>
+<li>按照 DATE 查询会很快</li>
+<li>所有的数据都需要先拿到本地后再过滤，目前看来，数据量比较小，拿到本地也没有什么问题</li>
+<li>如果使用 Azure Storage Table，可以按月生成新的 Table，来保证每个 Table 不至于过大</li>
+<li>如果需要查询历史数据，比如说跨月查询，比如查询从 1 月到 12 月中，FIELD1 等于某个值的所有数据，就需要从所有的 TABLE 中取出所有的数据，这个时候客户端需要处理的数据可能就会太大，特别是如果满足条件的数据量相对全部数据很小的时候，全部拿回到客户端再过滤就很不划算</li>
+<li>很便宜</li>
+</ol>
+
+
+<p>如果使用 SQL Azure 呢？</p>
+
+<ol>
+<li>可以给 DATE 和 FIELD2 以及 FIELD3 添加 INDEX 来提升查询速度</li>
+<li>对于历史数据而言，可以在 SQL Azure 中进行条件过滤，这样就可以客户端拿到的只是一个非常小的子集</li>
+<li>可以按月新建 TABLE 来避免数据量太大对查询效率的影响</li>
+<li>SQL Azure 的大部分功能都用不上，比较贵</li>
+</ol>
+
+
+<p>综上，选择 SQL Azure 更好一些</p>
+
+<h2>数据库设计</h2>
+
+<p>目前看来，只需要一个表，以后如果需要可以再添加新的表。这个表的 Schema 如下。</p>
+
+<p>/ID (Primary Key)/DATE (INDEX)/FIELD0/FIELD1/FIELD2 (INDEX)/FIELD3 (INDEX)/FIELD4/FIELD5/FIELD6 (INDEX)</p>
+
+<p>表名使用固定前缀加月比如：<strong>tbl_helloworld_201510</strong></p>
+
+<h2>Azure File Storage 还是 Azure Blob Storage</h2>
+
+<p>项目的应用会产生一个压缩文件，这个压缩文件需要存储在 Azure 上，并由一个 Worker Role 读取,同时这些文件还有可能会需要从浏览器下载。File Storage 和 Blob Storage 都可以，应该选择哪一个？</p>
+
+<p>价格：File Storage 每 GB $0.08 LRS，或者 $0.10 GRS，而 Block Blob 是每 GB $0.024 LRS 或者 $0.048 GRS, Block Blob 要便宜 50% 到 70%.</p>
+
+<p>Azure File Storage 最合适应用是 Mount 到 Azure Virtual Machine 上，允许使用传统的文件访问 API 去读写。</p>
+
+<p><img src="https://acomdpsstorage.blob.core.windows.net/dpsmedia-prod/azure.microsoft.com/en-us/documentation/articles/storage-dotnet-how-to-use-files/20151021052752/includes/storage-file-concepts-include/files-concepts.png" alt="" /></p>
+
+<p>Azure Blob Storage 可以存储任何文件，Block blob 最大可以到 195 GB.</p>
+
+<p><img src="https://acomdpsstorage.blob.core.windows.net/dpsmedia-prod/azure.microsoft.com/en-us/documentation/articles/storage-dotnet-how-to-use-blobs/20151020051348/includes/storage-blob-concepts-include/blob1.jpg" alt="" /></p>
+
+<p>两种都可以通过 URL 访问。Blob 可以通过设置 SAS 来让最终用户直接访问，不需要经过 Web Server 中转，File Storage 似乎可以使用其 StorageUri 属性来像 Blob 一样访问。</p>
+
+<p>对于这个项目而言，Azure File Storage 似乎并没有带来额外的好处，所以选择 Blob Storage。</p>
+
+<p>&lt;待续></p>
+
+<h6>日月忽其不淹兮，春与秋其代序</h6>
+]]></content>
+  </entry>
   
   <entry>
     <title type="html"><![CDATA[一些工具]]></title>
